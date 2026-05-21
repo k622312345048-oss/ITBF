@@ -20,15 +20,8 @@ COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
           "#9467bd", "#8c564b", "#e377c2", "#7f7f7f"]
 
 
-def plot_distribution(frames: dict[str, pd.DataFrame], output_dir: Path,
-                      max_tickers: int = 6) -> None:
-    """Vẽ lưới histogram + KDE của daily returns cho từng mã.
-
-    Args:
-        frames:      Dict {tên_mã: DataFrame}.
-        output_dir:  Thư mục lưu ảnh.
-        max_tickers: Số mã tối đa hiển thị (mặc định 6).
-    """
+def plot_distribution(frames: dict[str, pd.DataFrame], output_dir: Path) -> None:
+    """Vẽ lưới histogram + KDE của daily returns cho từng mã."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Lọc mã có đủ daily_return
@@ -40,8 +33,7 @@ def plot_distribution(frames: dict[str, pd.DataFrame], output_dir: Path,
         logger.warning("Không có mã nào đủ dữ liệu để vẽ distribution.")
         return
 
-    # Giới hạn số mã
-    selected = dict(list(valid.items())[:max_tickers])
+    selected = dict(valid)
     n = len(selected)
     ncols = min(3, n)
     nrows = (n + ncols - 1) // ncols

@@ -26,9 +26,10 @@ def test_cleaner_removes_duplicates(sample_df):
     cleaner = Cleaner()
     # Write to temp file and clean
     import tempfile, os
+    from pathlib import Path
     with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
         df_dup.to_csv(f.name)
-        cleaned = cleaner.clean(f.name)
+        cleaned = cleaner.clean(Path(f.name))
     os.unlink(f.name)
     assert len(cleaned) == len(sample_df)
 
