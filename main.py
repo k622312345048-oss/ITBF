@@ -37,8 +37,16 @@ def run_collect() -> None:
     logger.info(f"=== Thu thập {len(settings.macro_symbols)} chỉ số macro ===")
     MacroCollector().collect(symbols=settings.macro_symbols)
 
-    news_keywords = [t for t in settings.stock_tickers if t != "VNINDEX"]
-    logger.info(f"=== Thu thập news cho {len(news_keywords)} mã ===")
+    # Dùng keywords thị trường rộng — tickers VN không có coverage tiếng Anh
+    news_keywords = [
+        "Vietnam stock market",
+        "VN-Index",
+        "Vietnam economy",
+        "FPT Vietnam",
+        "Vinhomes",
+        "Hoa Phat steel",
+    ]
+    logger.info(f"=== Thu thập news ({len(news_keywords)} keywords) ===")
     NewsCollector().collect(keywords=news_keywords)
 
 
