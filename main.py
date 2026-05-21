@@ -5,10 +5,9 @@ Usage:
     python main.py --all
 
     # Chạy từng bước
-    python main.py --step collect              # Toàn sàn VN + 19 macro
-    python main.py --step collect --quick      # 5 mã mẫu (test nhanh)
+    python main.py --step collect
     python main.py --step process
-    python main.py --step visualize                          # Blue-chip mặc định
+    python main.py --step visualize                          # 10 mã mặc định
     python main.py --step visualize --tickers VNM,HPG,FPT   # Tự chọn mã
     python main.py --step analyze
 """
@@ -25,23 +24,17 @@ logging.basicConfig(
 logger = logging.getLogger("finagent")
 
 
-def run_collect(quick: bool = False) -> None:
+def run_collect() -> None:
     from collection.vn_stock_collector import VNStockCollector
     from collection.macro_collector import MacroCollector
 
     settings.ensure_dirs()
 
-    if quick:
-        # Chế độ test: chỉ lấy vài mã mẫu
-        logger.info("=== CHẾ ĐỘ QUICK: chỉ tải mã mẫu ===")
-        VNStockCollector().collect(symbols=settings.sample_tickers)
-    else:
-        # Chế độ đầy đủ: toàn bộ ~1535 mã VN
-        logger.info("=== CHẾ ĐỘ FULL: tải toàn bộ cổ phiếu VN ===")
-        VNStockCollector().collect()
+    logger.info(f"=== Thu thập {len(settings.stock_tickers)} cổ phiếu ===")
+    VNStockCollector().collect(symbols=settings.stock_tickers)
 
-    logger.info("=== Thu thập chỉ số macro ===")
-    MacroCollector().collect()
+    logger.info(f"=== Thu thập {len(settings.macro_symbols)} chỉ số macro ===")
+    MacroCollector().collect(symbols=settings.macro_symbols)
 
 
 def run_process() -> None:
@@ -143,8 +136,6 @@ def main():
     group.add_argument("--all",  action="store_true", help="Chạy full pipeline")
     group.add_argument("--step", choices=["collect", "process", "visualize", "analyze"],
                        help="Chạy từng bước")
-    parser.add_argument("--quick", action="store_true",
-                        help="Chỉ dùng với --step collect: tải mã mẫu thay vì toàn sàn")
     parser.add_argument("--tickers", type=str, default=None,
                         help="Danh sách mã cách nhau bằng dấu phẩy, ví dụ: VNM,HPG,FPT")
     args = parser.parse_args()
@@ -152,12 +143,12 @@ def main():
     tickers = [t.strip() for t in args.tickers.split(",")] if args.tickers else None
 
     if args.all:
-        run_collect(quick=False)
+        run_collect()
         run_process()
         run_visualize(tickers)
         run_analyze()
     elif args.step == "collect":
-        run_collect(quick=args.quick)
+        run_collect()
     elif args.step == "process":
         run_process()
     elif args.step == "visualize":

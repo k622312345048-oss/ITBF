@@ -9,15 +9,34 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     news_api_key: str = ""
 
-    # Cổ phiếu mặc định để test nhanh (dùng --step collect --quick)
-    # Khi chạy full pipeline thì VNStockCollector tự lấy toàn sàn
-    sample_tickers: list[str] = ["VNM", "HPG", "FPT", "VIC", "ACB"]
+    # 10 mã cổ phiếu Việt Nam cần phân tích
+    stock_tickers: list[str] = [
+        "VNM",   # Vinamilk
+        "HPG",   # Hòa Phát Group
+        "FPT",   # FPT Corporation
+        "MWG",   # Thế Giới Di Động
+        "VCB",   # Vietcombank
+        "TCB",   # Techcombank
+        "VHM",   # Vinhomes
+        "GAS",   # PV GAS
+        "VIC",   # Vingroup
+        "VIX",   # Chứng khoán VIX
+    ]
+
+    # Chỉ số vĩ mô
+    macro_symbols: list[str] = [
+        "USDVND=X",  # Tỷ giá USD/VNĐ
+        "GC=F",      # Giá vàng thế giới (USD/oz)
+        "CL=F",      # Giá dầu WTI (USD/barrel)
+        "^VNINDEX",  # VN-Index (benchmark thị trường)
+        "^GSPC",     # S&P 500 (dòng vốn ngoại)
+    ]
 
     # Paths
-    raw_data_dir: Path = BASE_DIR / "data" / "raw"
+    raw_data_dir: Path       = BASE_DIR / "data" / "raw"
     processed_data_dir: Path = BASE_DIR / "data" / "processed"
-    charts_dir: Path = BASE_DIR / "reports" / "charts"
-    analysis_dir: Path = BASE_DIR / "reports" / "analysis"
+    charts_dir: Path         = BASE_DIR / "reports" / "charts"
+    analysis_dir: Path       = BASE_DIR / "reports" / "analysis"
 
     class Config:
         env_file = ".env"
