@@ -9,7 +9,7 @@ Ví dụ câu hỏi:
     > Phân tích HPG trong 3 tháng gần đây
     > So sánh VNM, HPG và FPT
     > Mã nào tăng mạnh nhất tháng này?
-    > Vẽ biểu đồ Bollinger cho FPT
+    > Vẽ biểu đồ Bollinger cho GAS
     > reset  (xoá lịch sử, bắt đầu lại)
     > quit   (thoát)
 """
@@ -46,7 +46,7 @@ EXAMPLES = """Ví dụ:
   Phân tích HPG 3 tháng gần đây
   So sánh VNM, HPG, FPT
   Mã nào tăng mạnh nhất tháng này?
-  Vẽ biểu đồ Bollinger cho ACB
+  Vẽ biểu đồ Bollinger cho GAS
 """
 
 
