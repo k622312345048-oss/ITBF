@@ -11,26 +11,31 @@ def _fmt(val, fmt: str) -> str:
 
 
 def build_news_context(ticker: str, news_df: pd.DataFrame, days: int = 7) -> str:
-    """Tạo đoạn text tóm tắt news sentiment gần nhất cho 1 mã.
+    """Tóm tắt Vietnam market news sentiment cho context của LLM.
 
-    Chỉ lấy `days` ngày gần nhất. Trả về chuỗi rỗng nếu không có dữ liệu.
+    Ưu tiên ticker-specific news, fallback về market-level news
+    (vì news keywords là 'Vietnam stock market', 'VN-Index' etc. chứ không
+    phải từng ticker riêng lẻ).
     """
     if news_df is None or news_df.empty:
         return ""
 
-    subset = news_df[news_df["keyword"] == ticker.upper()].copy()
+    df = news_df.copy()
+    df["date"] = pd.to_datetime(df["date"])
+    cutoff = df["date"].max() - pd.Timedelta(days=days)
+    df = df[df["date"] >= cutoff]
+
+    if df.empty:
+        return ""
+
+    # Thử ticker-specific trước
+    subset = df[df["keyword"] == ticker.upper()]
+    # Fallback: dùng tất cả market news (aggregate)
     if subset.empty:
-        return ""
+        subset = df
 
-    subset["date"] = pd.to_datetime(subset["date"])
-    cutoff = subset["date"].max() - pd.Timedelta(days=days)
-    recent = subset[subset["date"] >= cutoff].sort_values("date", ascending=False)
-
-    if recent.empty:
-        return ""
-
-    total_articles = int(recent["article_count"].sum())
-    avg_sentiment  = recent["sentiment_mean"].mean()
+    total_articles = int(subset["article_count"].sum())
+    avg_sentiment  = subset["sentiment_mean"].mean()
     sentiment_label = (
         "positive" if avg_sentiment > 0.1
         else "negative" if avg_sentiment < -0.1
@@ -38,15 +43,19 @@ def build_news_context(ticker: str, news_df: pd.DataFrame, days: int = 7) -> str
     )
 
     daily_lines = []
-    for _, row in recent.head(5).iterrows():
-        date_str = pd.Timestamp(row["date"]).strftime("%Y-%m-%d")
+    agg = (subset.groupby("date")
+           .agg(sentiment_mean=("sentiment_mean", "mean"),
+                article_count=("article_count", "sum"))
+           .sort_index(ascending=False))
+    for date, row in agg.head(5).iterrows():
         daily_lines.append(
-            f"  {date_str}: sentiment={row['sentiment_mean']:+.2f}, "
+            f"  {pd.Timestamp(date).strftime('%Y-%m-%d')}: "
+            f"sentiment={row['sentiment_mean']:+.2f}, "
             f"{int(row['article_count'])} articles"
         )
 
     return (
-        f"Recent news sentiment ({days} days): {sentiment_label} "
+        f"Vietnam market news sentiment ({days} days): {sentiment_label} "
         f"(avg={avg_sentiment:+.2f}, {total_articles} total articles)\n"
         + "\n".join(daily_lines)
     )
