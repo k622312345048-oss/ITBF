@@ -3,48 +3,47 @@
 Nguồn: VCI (VietCap) qua thư viện vnstock.
 Bao gồm HOSE, HNX, UPCOM (~1535 mã).
 Mỗi mã lấy từ ngày đầu niêm yết đến hiện tại.
+
+Rate limit của vnstock (guest): 20 req/phút.
+→ Dùng 3.5s sleep giữa mỗi mã để ở dưới ngưỡng an toàn.
+→ Ước tính: 1535 mã × 3.5s ≈ 90 phút.
+→ Resume được: chạy lại tự bỏ qua file đã có.
 """
 
 import logging
 import time
 import warnings
 from datetime import date
-from pathlib import Path
 
 import pandas as pd
 
 from config import settings
 from collection.base_collector import BaseCollector
 
-# Tắt deprecation warnings của vnstock
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 logger = logging.getLogger(__name__)
 
-START_DATE = "2000-01-01"   # Trước khi HOSE mở cửa (2000-07-28) để đảm bảo không bỏ sót
+START_DATE       = "2000-01-01"  # Trước ngày HOSE mở cửa 28/07/2000
+RATE_LIMIT_PAUSE = 60.0          # Giây chờ khi bị rate-limit
+SLEEP_BETWEEN    = 3.5           # Giây giữa mỗi mã (≤17 req/phút, an toàn với guest)
+SLEEP_BATCH      = 5.0           # Giây nghỉ thêm sau mỗi 50 mã
+BATCH_SIZE       = 50
 
 
 class VNStockCollector(BaseCollector):
-    """Thu thập OHLCV toàn bộ cổ phiếu VN từ ngày IPO đến hôm nay.
+    """Thu thập OHLCV toàn bộ cổ phiếu VN từ ngày IPO đến hôm nay."""
 
-    - Tự động lấy danh sách 1535+ mã từ vnstock
-    - Bỏ qua file đã tải (resume sau khi gián đoạn)
-    - Delay giữa mỗi mã để tránh rate-limit
-    """
-
-    SLEEP_BETWEEN = 1.0      # giây giữa mỗi mã
-    BATCH_SIZE    = 50       # sau mỗi batch in tiến độ
-    SLEEP_BATCH   = 3.0      # giây nghỉ giữa các batch
+    MAX_RETRIES = 4   # ghi đè BaseCollector
 
     def get_all_symbols(self) -> pd.DataFrame:
         """Lấy danh sách toàn bộ mã niêm yết kèm sàn giao dịch."""
         from vnstock.api.listing import Listing
         logger.info("Đang lấy danh sách toàn bộ mã chứng khoán VN...")
         df = Listing().symbols_by_exchange()
-        # Chỉ lấy cổ phiếu (loại bỏ chứng chỉ quỹ, trái phiếu)
         if "type" in df.columns:
             df = df[df["type"] == "stock"].copy()
-        logger.info(f"Tổng cộng {len(df)} mã cổ phiếu: "
-                    f"{df['exchange'].value_counts().to_dict()}")
+        exchange_counts = df["exchange"].value_counts().to_dict() if "exchange" in df.columns else {}
+        logger.info(f"Tổng {len(df)} mã: {exchange_counts}")
         return df
 
     def collect(self, symbols: list[str] | None = None, force_reload: bool = False) -> None:
@@ -64,66 +63,79 @@ class VNStockCollector(BaseCollector):
         total = len(symbols)
         success, skipped, failed = 0, 0, []
 
-        logger.info(f"Bắt đầu tải {total} mã từ {START_DATE} đến {today}")
+        logger.info(f"Bắt đầu tải {total} mã | {START_DATE} → {today}")
+        logger.info(f"Sleep {SLEEP_BETWEEN}s/mã → ước tính {total * SLEEP_BETWEEN / 60:.0f} phút")
 
         for i, symbol in enumerate(symbols, start=1):
             out = settings.raw_data_dir / f"stock_{symbol}.csv"
 
-            # Bỏ qua nếu đã có file (trừ khi force_reload=True)
             if out.exists() and not force_reload:
                 skipped += 1
-                if i % 100 == 0:
-                    logger.info(f"[{i}/{total}] Bỏ qua (đã có): {symbol}")
+                if i % 200 == 0:
+                    logger.info(f"[{i}/{total}] {skipped} bỏ qua, {success} mới, {len(failed)} lỗi")
                 continue
 
-            df = self._fetch_with_retry(self._download_one, symbol, today)
+            df = self._download_with_ratelimit(symbol, today)
 
             if df is None or df.empty:
                 failed.append(symbol)
-                logger.warning(f"[{i}/{total}] KHÔNG có dữ liệu: {symbol}")
+                logger.warning(f"[{i}/{total}] Không có dữ liệu: {symbol}")
             else:
                 df.to_csv(out, index=False)
                 success += 1
-                if i % 10 == 0 or i <= 5:
-                    logger.info(f"[{i}/{total}] {symbol}: {len(df)} phiên "
-                                f"({df['time'].iloc[0].date()} → {df['time'].iloc[-1].date()})")
+                if i % 20 == 0 or i <= 3:
+                    first = df["time"].iloc[0].date()
+                    last  = df["time"].iloc[-1].date()
+                    logger.info(f"[{i}/{total}] {symbol}: {len(df)} phiên ({first} → {last})")
 
-            # Nghỉ giữa mỗi mã
-            time.sleep(self.SLEEP_BETWEEN)
+            time.sleep(SLEEP_BETWEEN)
 
-            # Nghỉ dài hơn sau mỗi batch
-            if i % self.BATCH_SIZE == 0:
-                logger.info(f"--- Batch {i//self.BATCH_SIZE}: {success} OK, "
-                            f"{skipped} bỏ qua, {len(failed)} lỗi ---")
-                time.sleep(self.SLEEP_BATCH)
+            if i % BATCH_SIZE == 0:
+                pct = i / total * 100
+                logger.info(f"[{i}/{total} | {pct:.0f}%] batch done — "
+                            f"{success} OK, {skipped} skip, {len(failed)} fail")
+                time.sleep(SLEEP_BATCH)
 
-        logger.info(f"\n=== HOÀN THÀNH ===")
-        logger.info(f"  Tải thành công : {success}")
-        logger.info(f"  Bỏ qua (có sẵn): {skipped}")
-        logger.info(f"  Thất bại       : {len(failed)}")
+        logger.info("=== HOÀN THÀNH THU THẬP CỔ PHIẾU ===")
+        logger.info(f"  Thành công : {success}")
+        logger.info(f"  Bỏ qua    : {skipped}")
+        logger.info(f"  Thất bại  : {len(failed)}")
         if failed:
-            logger.warning(f"  Các mã lỗi: {failed}")
+            # Lưu danh sách mã lỗi để tải lại sau
+            fail_path = settings.raw_data_dir / "_failed_symbols.txt"
+            fail_path.write_text("\n".join(failed))
+            logger.warning(f"  Mã lỗi đã lưu → {fail_path.name}")
+
+    def _download_with_ratelimit(self, symbol: str, end_date: str) -> pd.DataFrame | None:
+        """Tải 1 mã, tự chờ và thử lại khi bị rate-limit."""
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                return self._download_one(symbol, end_date)
+            except Exception as e:
+                err = str(e).lower()
+                if "rate limit" in err or "giới hạn" in err or "limit" in err:
+                    wait = RATE_LIMIT_PAUSE * attempt
+                    logger.warning(f"  Rate-limit trên {symbol} (lần {attempt}). Chờ {wait:.0f}s...")
+                    time.sleep(wait)
+                else:
+                    logger.debug(f"  Lỗi {symbol} lần {attempt}: {e}")
+                    if attempt < self.MAX_RETRIES:
+                        time.sleep(2 * attempt)
+        return None
 
     def _download_one(self, symbol: str, end_date: str) -> pd.DataFrame | None:
-        """Tải OHLCV từ ngày đầu đến end_date cho 1 mã."""
-        try:
-            from vnstock.api.quote import Quote
-            df = Quote(symbol=symbol, source="VCI").history(
-                start=START_DATE,
-                end=end_date,
-                interval="1D",
-            )
-            if df is None or df.empty:
-                return None
-
-            # Chuẩn hoá kiểu dữ liệu
-            df["time"] = pd.to_datetime(df["time"])
-            for col in ["open", "high", "low", "close"]:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-            df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0).astype(int)
-
-            return df.sort_values("time").reset_index(drop=True)
-
-        except Exception as e:
-            logger.debug(f"Lỗi tải {symbol}: {e}")
+        from vnstock.api.quote import Quote
+        df = Quote(symbol=symbol, source="VCI").history(
+            start=START_DATE,
+            end=end_date,
+            interval="1D",
+        )
+        if df is None or df.empty:
             return None
+
+        df["time"] = pd.to_datetime(df["time"])
+        for col in ["open", "high", "low", "close"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0).astype(int)
+
+        return df.sort_values("time").reset_index(drop=True)
