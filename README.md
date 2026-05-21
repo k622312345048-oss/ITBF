@@ -8,10 +8,10 @@ An end-to-end pipeline that collects financial data, cleans it, visualizes it, a
 
 ```
 finagent/
-├── collection/        # Data collection (yfinance, Alpha Vantage, NewsAPI)
+├── collection/        # Data collection (vnstock, yfinance)
 ├── processing/        # Cleaning, feature engineering, validation
 ├── visualization/     # 4 chart types (trend, heatmap, distribution, Bollinger)
-├── analysis/          # Claude AI analysis & report generation
+├── analysis/          # Claude AI analysis & interactive agent
 ├── data/              # raw/ and processed/ CSVs (git-ignored)
 ├── reports/           # Generated charts and analysis (git-ignored)
 └── tests/             # Unit tests
@@ -47,29 +47,38 @@ python main.py --step collect
 python main.py --step process
 python main.py --step visualize
 python main.py --step analyze
+
+# Interactive AI chatbot
+python agent.py
 ```
 
 ## Data Sources
 
 | Source | Data Type | Library |
 |---|---|---|
-| Yahoo Finance | Stock prices (OHLCV), commodities | `yfinance` |
-| Alpha Vantage | FX rates, additional indicators | `alpha-vantage` |
-| NewsAPI | Financial news headlines | `newsapi-python` |
+| VCI (vnstock) | VN stock prices OHLCV (full history) | `vnstock` |
+| Yahoo Finance | Macro indicators (gold, oil, FX, S&P 500) | `yfinance` |
 
 ## Tracked Assets
 
-- **Stocks (VN):** VNM.VN, HPG.VN, FPT.VN
-- **Stocks (US):** AAPL, MSFT
-- **Macro:** Gold (`GC=F`), Crude Oil (`CL=F`)
+**Vietnamese Stocks (10 mã):**
+VNM (Vinamilk), HPG (Hòa Phát), FPT (FPT Corp), MWG (Thế Giới Di Động),
+VCB (Vietcombank), TCB (Techcombank), VHM (Vinhomes), GAS (PV GAS),
+VIC (Vingroup), VIX (Chứng khoán VIX)
+
+**Market Benchmark:** VNINDEX (VN-Index)
+
+**Macro Indicators (4):**
+USDVND (Tỷ giá USD/VNĐ), GC=F (Vàng), CL=F (Dầu WTI), ^GSPC (S&P 500)
 
 ## Features
 
 - Robust data collection with retry/rate-limit handling
 - Cleaning pipeline: missing values, duplicates, outlier flagging
 - Feature engineering: daily returns, MA 7/30d, volatility, Bollinger Bands
-- 4 chart types: trend+volume, correlation heatmap, returns distribution, Bollinger
+- 4 chart types: trend+volume, correlation heatmap, returns distribution, Bollinger Bands
 - Claude-powered analysis: trend summary, anomaly detection, risk commentary, asset comparison
+- Interactive AI chatbot (`agent.py`) with tool use
 
 ## Running Tests
 
@@ -82,7 +91,6 @@ pytest tests/ -v
 | Key | Where to get |
 |---|---|
 | `ANTHROPIC_API_KEY` | https://console.anthropic.com |
-| `ALPHA_VANTAGE_API_KEY` | https://www.alphavantage.co/support/#api-key |
 | `NEWS_API_KEY` | https://newsapi.org/register |
 
 **Never commit your `.env` file.**
