@@ -24,8 +24,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 logger = logging.getLogger(__name__)
 
 START_DATE       = "2000-01-01"  # Trước ngày HOSE mở cửa 28/07/2000
-RATE_LIMIT_PAUSE = 60.0          # Giây chờ khi bị rate-limit
-SLEEP_BETWEEN    = 3.5           # Giây giữa mỗi mã (≤17 req/phút, an toàn với guest)
+RATE_LIMIT_PAUSE = 90.0          # Giây chờ khi bị rate-limit
+SLEEP_BETWEEN    = 4.5           # Giây giữa mỗi mã (≤13 req/phút, an toàn với guest)
 SLEEP_BATCH      = 5.0           # Giây nghỉ thêm sau mỗi 50 mã
 BATCH_SIZE       = 50
 
@@ -107,15 +107,24 @@ class VNStockCollector(BaseCollector):
             logger.warning(f"  Mã lỗi đã lưu → {fail_path.name}")
 
     def _download_with_ratelimit(self, symbol: str, end_date: str) -> pd.DataFrame | None:
-        """Tải 1 mã, tự chờ và thử lại khi bị rate-limit."""
+        """Tải 1 mã, tự chờ và thử lại khi bị rate-limit.
+
+        vnstock gọi sys.exit() khi rate-limit → bắt SystemExit (BaseException),
+        không phải Exception thông thường.
+        """
         for attempt in range(1, self.MAX_RETRIES + 1):
             try:
                 return self._download_one(symbol, end_date)
+            except SystemExit:
+                # vnstock gọi sys.exit() khi bị rate-limit
+                wait = RATE_LIMIT_PAUSE * attempt
+                logger.warning(f"  Rate-limit (sys.exit) trên {symbol} lần {attempt}. Chờ {wait:.0f}s...")
+                time.sleep(wait)
             except Exception as e:
                 err = str(e).lower()
                 if "rate limit" in err or "giới hạn" in err or "limit" in err:
                     wait = RATE_LIMIT_PAUSE * attempt
-                    logger.warning(f"  Rate-limit trên {symbol} (lần {attempt}). Chờ {wait:.0f}s...")
+                    logger.warning(f"  Rate-limit trên {symbol} lần {attempt}. Chờ {wait:.0f}s...")
                     time.sleep(wait)
                 else:
                     logger.debug(f"  Lỗi {symbol} lần {attempt}: {e}")
