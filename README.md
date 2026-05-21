@@ -2,16 +2,16 @@
 
 > Midterm project — IT Application in Banking and Finance (2026)
 
-An end-to-end pipeline that collects financial data, cleans it, visualizes it, and generates AI-powered analysis using Claude.
+An end-to-end pipeline that collects financial data from multiple sources, cleans and processes it, generates publication-quality visualizations, and delivers AI-powered analysis using LLaMA 3.3 70B (via Groq).
 
 ## Project Structure
 
 ```
 finagent/
-├── collection/        # Data collection (vnstock, yfinance)
-├── processing/        # Cleaning, feature engineering, validation
+├── collection/        # Data collection (vnstock, yfinance, NewsAPI)
+├── processing/        # Cleaning, feature engineering, validation, news sentiment
 ├── visualization/     # 4 chart types (trend, heatmap, distribution, Bollinger)
-├── analysis/          # Claude AI analysis & interactive agent
+├── analysis/          # AI analysis & interactive agent (Groq / LLaMA 3.3 70B)
 ├── data/              # raw/ and processed/ CSVs (git-ignored)
 ├── reports/           # Generated charts and analysis (git-ignored)
 └── tests/             # Unit tests
@@ -55,9 +55,10 @@ python agent.py
 ## Data Sources
 
 | Source | Data Type | Library |
-|---|---|---|
+|--------|-----------|---------|
 | VCI (vnstock) | VN stock prices OHLCV (full history) | `vnstock` |
 | Yahoo Finance | Macro indicators (gold, oil, FX, S&P 500) | `yfinance` |
+| NewsAPI | Financial news headlines & sentiment | `newsapi-python` |
 
 ## Tracked Assets
 
@@ -73,11 +74,12 @@ USDVND (Tỷ giá USD/VNĐ), GC=F (Vàng), CL=F (Dầu WTI), ^GSPC (S&P 500)
 
 ## Features
 
-- Robust data collection with retry/rate-limit handling
-- Cleaning pipeline: missing values, duplicates, outlier flagging
-- Feature engineering: daily returns, MA 7/30d, volatility, Bollinger Bands
+- Robust data collection with retry/rate-limit handling (3 sources)
+- Cleaning pipeline: missing values (forward-fill), duplicate removal, outlier flagging
+- Feature engineering: daily returns, MA 7/30d, annualised volatility, Bollinger Bands
+- News sentiment scoring (keyword-based, per ticker per day)
 - 4 chart types: trend+volume, correlation heatmap, returns distribution, Bollinger Bands
-- Claude-powered analysis: trend summary, anomaly detection, risk commentary, asset comparison
+- AI-powered analysis (LLaMA 3.3 70B via Groq): trend summary, anomaly detection, risk commentary, asset comparison, news sentiment alignment
 - Interactive AI chatbot (`agent.py`) with tool use
 
 ## Running Tests
@@ -89,16 +91,16 @@ pytest tests/ -v
 ## API Keys Required
 
 | Key | Where to get |
-|---|---|
-| `ANTHROPIC_API_KEY` | https://console.anthropic.com |
-| `NEWS_API_KEY` | https://newsapi.org/register |
+|-----|-------------|
+| `GROQ_API_KEY` | https://console.groq.com (free) |
+| `NEWS_API_KEY` | https://newsapi.org/register (free) |
 
 **Never commit your `.env` file.**
 
 ## Team — Nhóm 9
 
 | Thành viên | Module |
-|---|---|
+|------------|--------|
 | Nguyễn Trần Hoàng Phúc | `collection/` + `config.py` |
 | Trương Ngọc Nga | `processing/` + `tests/` |
 | Hà Phương Ngân | `visualization/` + `analysis/` + `main.py` |
