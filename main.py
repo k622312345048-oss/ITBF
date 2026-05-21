@@ -27,6 +27,7 @@ logger = logging.getLogger("finagent")
 def run_collect() -> None:
     from collection.vn_stock_collector import VNStockCollector
     from collection.macro_collector import MacroCollector
+    from collection.news_collector import NewsCollector
 
     settings.ensure_dirs()
 
@@ -36,21 +37,38 @@ def run_collect() -> None:
     logger.info(f"=== Thu thập {len(settings.macro_symbols)} chỉ số macro ===")
     MacroCollector().collect(symbols=settings.macro_symbols)
 
+    news_keywords = [t for t in settings.stock_tickers if t != "VNINDEX"]
+    logger.info(f"=== Thu thập news cho {len(news_keywords)} mã ===")
+    NewsCollector().collect(keywords=news_keywords)
+
 
 def run_process() -> None:
     from processing.cleaner import Cleaner
     from processing.feature_engineer import FeatureEngineer
     from processing.validator import Validator
+    from processing.news_processor import NewsProcessor
 
     logger.info("Bắt đầu xử lý dữ liệu...")
     cleaner   = Cleaner()
     engineer  = FeatureEngineer()
     validator = Validator()
 
-    csv_files = list(settings.raw_data_dir.glob("*.csv"))
-    logger.info(f"Tìm thấy {len(csv_files)} files cần xử lý")
+    # Xử lý news.csv riêng (cấu trúc khác OHLCV)
+    news_file = settings.raw_data_dir / "news.csv"
+    if news_file.exists():
+        try:
+            news_df = NewsProcessor().process(news_file)
+            out = settings.processed_data_dir / "news_sentiment.csv"
+            news_df.to_csv(out, index=False)
+            logger.info(f"News sentiment đã lưu → {out.name}")
+        except Exception as e:
+            logger.error(f"Lỗi xử lý news.csv: {e}")
 
-    for raw_file in csv_files:
+    # Xử lý các file OHLCV (stock + macro), bỏ qua news.csv
+    ohlcv_files = [f for f in settings.raw_data_dir.glob("*.csv") if f.name != "news.csv"]
+    logger.info(f"Tìm thấy {len(ohlcv_files)} files OHLCV cần xử lý")
+
+    for raw_file in ohlcv_files:
         try:
             df = cleaner.clean(raw_file)
             df = engineer.engineer(df)

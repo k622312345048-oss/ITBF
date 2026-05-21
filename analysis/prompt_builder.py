@@ -10,7 +10,50 @@ def _fmt(val, fmt: str) -> str:
         return "N/A"
 
 
-def build_summary_prompt(name: str, df: pd.DataFrame) -> str:
+def build_news_context(ticker: str, news_df: pd.DataFrame, days: int = 7) -> str:
+    """Tạo đoạn text tóm tắt news sentiment gần nhất cho 1 mã.
+
+    Chỉ lấy `days` ngày gần nhất. Trả về chuỗi rỗng nếu không có dữ liệu.
+    """
+    if news_df is None or news_df.empty:
+        return ""
+
+    subset = news_df[news_df["keyword"] == ticker.upper()].copy()
+    if subset.empty:
+        return ""
+
+    subset["date"] = pd.to_datetime(subset["date"])
+    cutoff = subset["date"].max() - pd.Timedelta(days=days)
+    recent = subset[subset["date"] >= cutoff].sort_values("date", ascending=False)
+
+    if recent.empty:
+        return ""
+
+    total_articles = int(recent["article_count"].sum())
+    avg_sentiment  = recent["sentiment_mean"].mean()
+    sentiment_label = (
+        "positive" if avg_sentiment > 0.1
+        else "negative" if avg_sentiment < -0.1
+        else "neutral"
+    )
+
+    daily_lines = []
+    for _, row in recent.head(5).iterrows():
+        date_str = pd.Timestamp(row["date"]).strftime("%Y-%m-%d")
+        daily_lines.append(
+            f"  {date_str}: sentiment={row['sentiment_mean']:+.2f}, "
+            f"{int(row['article_count'])} articles"
+        )
+
+    return (
+        f"Recent news sentiment ({days} days): {sentiment_label} "
+        f"(avg={avg_sentiment:+.2f}, {total_articles} total articles)\n"
+        + "\n".join(daily_lines)
+    )
+
+
+def build_summary_prompt(name: str, df: pd.DataFrame,
+                         news_df: pd.DataFrame | None = None) -> str:
     close       = df["close"]
     last        = close.iloc[-1]
     start       = close.iloc[0]
@@ -25,6 +68,10 @@ def build_summary_prompt(name: str, df: pd.DataFrame) -> str:
     bb_lower    = df["bb_lower"].iloc[-1]        if "bb_lower"      in df.columns else None
     outliers    = int(df["is_outlier"].sum())    if "is_outlier"    in df.columns else 0
 
+    ticker = name.replace("stock_", "").upper()
+    news_section = build_news_context(ticker, news_df) if news_df is not None else ""
+    news_block = f"\nNews Sentiment:\n{news_section}" if news_section else ""
+
     stats = f"""Asset: {name}
 Period: {df.index[0].date()} to {df.index[-1].date()}
 Starting price: {_fmt(start, '.2f')}
@@ -37,12 +84,17 @@ Trend signal: {'BULLISH (MA7 > MA30)' if ma7 and ma30 and not pd.isna(ma7) and n
 BB Upper: {_fmt(bb_upper, '.2f')}
 BB Lower: {_fmt(bb_lower, '.2f')}
 30-day annualised volatility: {_fmt(vol, '.2%')}
-Anomalous sessions flagged: {outliers}"""
+Anomalous sessions flagged: {outliers}{news_block}"""
+
+    news_instruction = (
+        "\n4. News sentiment alignment — does recent news support or contradict the price trend"
+        if news_section else ""
+    )
 
     return f"""You are a financial analyst. Based on the following data, write a focused 3-paragraph analysis covering:
 1. Current trend and recent performance (reference specific numbers)
 2. Notable anomalies or events ({outliers} flagged sessions)
-3. Risk commentary based on volatility and Bollinger Band position
+3. Risk commentary based on volatility and Bollinger Band position{news_instruction}
 
 {stats}
 
