@@ -9,21 +9,9 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     news_api_key: str = ""
 
-    # Pipeline defaults
-    default_period: str = "6mo"
-
-    # Cổ phiếu Việt Nam (HOSE, đuôi .VN)
-    # Bắt đầu với VNM + HPG, thêm mã khác vào đây khi cần
-    stock_tickers: list[str] = [
-        "VNM.VN",   # Vinamilk
-        "HPG.VN",   # Hòa Phát Group
-    ]
-
-    # Chỉ số vĩ mô
-    macro_symbols: list[str] = [
-        "GC=F",      # Giá vàng thế giới (USD/oz)
-        "USDVND=X",  # Tỷ giá USD/VNĐ (1 USD = ~25,000 VNĐ)
-    ]
+    # Cổ phiếu mặc định để test nhanh (dùng --step collect --quick)
+    # Khi chạy full pipeline thì VNStockCollector tự lấy toàn sàn
+    sample_tickers: list[str] = ["VNM", "HPG", "FPT", "VIC", "ACB"]
 
     # Paths
     raw_data_dir: Path = BASE_DIR / "data" / "raw"

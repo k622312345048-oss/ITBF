@@ -1,8 +1,12 @@
 """
 FinAgent — AI-Powered Financial Data Agent
 Usage:
+    # Chạy toàn bộ pipeline (full market + macro)
     python main.py --all
-    python main.py --step collect
+
+    # Chạy từng bước
+    python main.py --step collect          # Toàn sàn VN + 19 chỉ số macro
+    python main.py --step collect --quick  # Chỉ 5 mã mẫu + macro (để test)
     python main.py --step process
     python main.py --step visualize
     python main.py --step analyze
@@ -20,101 +24,115 @@ logging.basicConfig(
 logger = logging.getLogger("finagent")
 
 
-def run_collect():
-    from collection.stock_collector import StockCollector
+def run_collect(quick: bool = False) -> None:
+    from collection.vn_stock_collector import VNStockCollector
     from collection.macro_collector import MacroCollector
-    from collection.news_collector import NewsCollector
 
-    logger.info("Starting data collection...")
     settings.ensure_dirs()
 
-    StockCollector().collect(settings.stock_tickers, settings.default_period)
-    MacroCollector().collect(settings.macro_symbols, settings.default_period)
-    NewsCollector().collect(settings.stock_tickers[:3])
-    logger.info("Data collection complete.")
+    if quick:
+        # Chế độ test: chỉ lấy vài mã mẫu
+        logger.info("=== CHẾ ĐỘ QUICK: chỉ tải mã mẫu ===")
+        VNStockCollector().collect(symbols=settings.sample_tickers)
+    else:
+        # Chế độ đầy đủ: toàn bộ ~1535 mã VN
+        logger.info("=== CHẾ ĐỘ FULL: tải toàn bộ cổ phiếu VN ===")
+        VNStockCollector().collect()
+
+    logger.info("=== Thu thập chỉ số macro ===")
+    MacroCollector().collect()
 
 
-def run_process():
+def run_process() -> None:
     from processing.cleaner import Cleaner
     from processing.feature_engineer import FeatureEngineer
     from processing.validator import Validator
 
-    logger.info("Starting data processing...")
-    cleaner = Cleaner()
-    engineer = FeatureEngineer()
+    logger.info("Bắt đầu xử lý dữ liệu...")
+    cleaner   = Cleaner()
+    engineer  = FeatureEngineer()
     validator = Validator()
 
-    for raw_file in settings.raw_data_dir.glob("*.csv"):
-        df = cleaner.clean(raw_file)
-        df = engineer.engineer(df)
-        validator.validate(df, raw_file.stem)
-        out = settings.processed_data_dir / raw_file.name
-        df.to_csv(out)
-        logger.info(f"Processed → {out.name}")
+    csv_files = list(settings.raw_data_dir.glob("*.csv"))
+    logger.info(f"Tìm thấy {len(csv_files)} files cần xử lý")
 
-    logger.info("Data processing complete.")
+    for raw_file in csv_files:
+        try:
+            df = cleaner.clean(raw_file)
+            df = engineer.engineer(df)
+            validator.validate(df, raw_file.stem)
+            out = settings.processed_data_dir / raw_file.name
+            df.to_csv(out)
+        except Exception as e:
+            logger.error(f"Lỗi xử lý {raw_file.name}: {e}")
 
 
-def run_visualize():
+def run_visualize() -> None:
     from visualization.trend_chart import plot_trend
     from visualization.heatmap import plot_heatmap
     from visualization.distribution import plot_distribution
     from visualization.rolling_stats import plot_rolling_stats
-
-    logger.info("Generating visualizations...")
     import pandas as pd
 
+    logger.info("Đang tạo biểu đồ...")
     frames = {}
     for f in settings.processed_data_dir.glob("*.csv"):
-        frames[f.stem] = pd.read_csv(f, index_col=0, parse_dates=True)
+        try:
+            df = pd.read_csv(f, index_col=0, parse_dates=True)
+            frames[f.stem] = df
+        except Exception:
+            pass
 
     if frames:
         plot_trend(frames, settings.charts_dir)
         plot_heatmap(frames, settings.charts_dir)
         plot_distribution(frames, settings.charts_dir)
         plot_rolling_stats(frames, settings.charts_dir)
+    logger.info(f"Biểu đồ đã lưu tại {settings.charts_dir}")
 
-    logger.info(f"Charts saved to {settings.charts_dir}")
 
-
-def run_analyze():
+def run_analyze() -> None:
     from analysis.analyzer import Analyzer
-
-    logger.info("Running AI analysis...")
     import pandas as pd
 
+    logger.info("Đang chạy phân tích AI...")
     frames = {}
     for f in settings.processed_data_dir.glob("*.csv"):
-        frames[f.stem] = pd.read_csv(f, index_col=0, parse_dates=True)
+        try:
+            df = pd.read_csv(f, index_col=0, parse_dates=True)
+            frames[f.stem] = df
+        except Exception:
+            pass
 
-    analyzer = Analyzer()
-    report = analyzer.run(frames)
-
+    report = Analyzer().run(frames)
     out = settings.analysis_dir / "report.md"
-    out.write_text(report)
-    logger.info(f"Analysis saved to {out}")
-
-
-STEPS = {
-    "collect": run_collect,
-    "process": run_process,
-    "visualize": run_visualize,
-    "analyze": run_analyze,
-}
+    out.write_text(report, encoding="utf-8")
+    logger.info(f"Báo cáo đã lưu tại {out}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="FinAgent pipeline")
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--all", action="store_true", help="Run full pipeline")
-    group.add_argument("--step", choices=STEPS.keys(), help="Run a single step")
+    group.add_argument("--all",  action="store_true", help="Chạy full pipeline")
+    group.add_argument("--step", choices=["collect", "process", "visualize", "analyze"],
+                       help="Chạy từng bước")
+    parser.add_argument("--quick", action="store_true",
+                        help="Chỉ dùng với --step collect: tải mã mẫu thay vì toàn sàn")
     args = parser.parse_args()
 
     if args.all:
-        for step_fn in STEPS.values():
-            step_fn()
-    else:
-        STEPS[args.step]()
+        run_collect(quick=False)
+        run_process()
+        run_visualize()
+        run_analyze()
+    elif args.step == "collect":
+        run_collect(quick=args.quick)
+    elif args.step == "process":
+        run_process()
+    elif args.step == "visualize":
+        run_visualize()
+    elif args.step == "analyze":
+        run_analyze()
 
 
 if __name__ == "__main__":
