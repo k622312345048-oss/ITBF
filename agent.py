@@ -27,9 +27,10 @@ logging.basicConfig(
 
 # Kiểm tra API key trước khi khởi động
 from config import settings
-if not settings.anthropic_api_key:
-    print("❌ Chưa có ANTHROPIC_API_KEY trong file .env")
-    print("   Tạo file .env và thêm dòng: ANTHROPIC_API_KEY=your_key_here")
+if not settings.gemini_api_key:
+    print("❌ Chưa có GEMINI_API_KEY trong file .env")
+    print("   Tạo file .env và thêm dòng: GEMINI_API_KEY=your_key_here")
+    print("   Lấy key miễn phí tại: https://aistudio.google.com/apikey")
     sys.exit(1)
 
 from analysis.agent import FinAgent

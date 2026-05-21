@@ -1,28 +1,33 @@
 import logging
 
-import anthropic
+from google import genai
+from google.genai import types
 
 from config import settings
 
 logger = logging.getLogger(__name__)
 
-_client: anthropic.Anthropic | None = None
+_client: genai.Client | None = None
+
+_SYSTEM = "You are a professional financial analyst. Be concise and data-driven."
+DEFAULT_MODEL = "gemini-2.0-flash"
 
 
-def get_client() -> anthropic.Anthropic:
+def get_client() -> genai.Client:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        _client = genai.Client(api_key=settings.gemini_api_key)
     return _client
 
 
-def chat(prompt: str, system: str = "", model: str = "claude-opus-4-7") -> str:
+def chat(prompt: str, system: str = "", model: str = DEFAULT_MODEL) -> str:
     client = get_client()
-    messages = [{"role": "user", "content": prompt}]
-    response = client.messages.create(
+    response = client.models.generate_content(
         model=model,
-        max_tokens=2048,
-        system=system or "You are a professional financial analyst. Be concise and data-driven.",
-        messages=messages,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=system or _SYSTEM,
+            max_output_tokens=2048,
+        ),
     )
-    return response.content[0].text
+    return response.text

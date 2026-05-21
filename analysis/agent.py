@@ -2,15 +2,16 @@
 
 Flow mỗi lượt:
   1. Người dùng gõ câu hỏi
-  2. Gửi lên Claude kèm danh sách tool
-  3. Claude quyết định gọi tool nào (hoặc trả lời trực tiếp)
-  4. Chạy tool, trả kết quả về cho Claude
-  5. Claude tổng hợp câu trả lời cuối cùng
+  2. Gửi lên Gemini kèm danh sách tool
+  3. Gemini quyết định gọi tool nào (hoặc trả lời trực tiếp)
+  4. Chạy tool, trả kết quả về cho Gemini
+  5. Gemini tổng hợp câu trả lời cuối cùng
 """
 
 import logging
 
-import anthropic
+from google import genai
+from google.genai import types
 
 from config import settings
 from analysis.tools import TOOL_SCHEMAS, execute_tool
@@ -28,65 +29,104 @@ Nguyên tắc:
 - Nếu không có dữ liệu, nói thẳng thay vì bịa số.
 - Không đưa ra lời khuyên đầu tư trực tiếp — chỉ phân tích khách quan."""
 
-MAX_TOOL_ROUNDS = 5   # Tránh vòng lặp vô hạn
+MAX_TOOL_ROUNDS = 5
+
+_TYPE_MAP = {
+    "string":  "STRING",
+    "integer": "INTEGER",
+    "number":  "NUMBER",
+    "boolean": "BOOLEAN",
+    "array":   "ARRAY",
+    "object":  "OBJECT",
+}
+
+
+def _build_schema(prop: dict) -> types.Schema:
+    t = _TYPE_MAP.get(prop.get("type", "string"), "STRING")
+    kwargs = {"type": t, "description": prop.get("description", "")}
+    if t == "ARRAY" and "items" in prop:
+        kwargs["items"] = _build_schema(prop["items"])
+    return types.Schema(**kwargs)
+
+
+def _build_gemini_tools() -> list[types.Tool]:
+    declarations = []
+    for schema in TOOL_SCHEMAS:
+        props    = schema["input_schema"].get("properties", {})
+        required = schema["input_schema"].get("required", [])
+        declarations.append(
+            types.FunctionDeclaration(
+                name=schema["name"],
+                description=schema["description"],
+                parameters=types.Schema(
+                    type="OBJECT",
+                    properties={k: _build_schema(v) for k, v in props.items()},
+                    required=required,
+                ),
+            )
+        )
+    return [types.Tool(function_declarations=declarations)]
 
 
 class FinAgent:
     def __init__(self):
-        self.client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-        self.model  = "claude-opus-4-7"
-        self.history: list[dict] = []   # Lưu lịch sử hội thoại
+        self._client = genai.Client(api_key=settings.gemini_api_key)
+        self._tools  = _build_gemini_tools()
+        self._config = types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            tools=self._tools,
+            max_output_tokens=4096,
+        )
+        self._history: list[types.Content] = []
 
     def chat(self, user_message: str) -> str:
-        """Gửi tin nhắn và nhận câu trả lời từ agent."""
-        self.history.append({"role": "user", "content": user_message})
+        self._history.append(
+            types.Content(role="user", parts=[types.Part(text=user_message)])
+        )
 
-        for round_num in range(MAX_TOOL_ROUNDS):
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=4096,
-                system=SYSTEM_PROMPT,
-                tools=TOOL_SCHEMAS,
-                messages=self.history,
+        for _ in range(MAX_TOOL_ROUNDS):
+            response = self._client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=self._history,
+                config=self._config,
             )
 
-            # Nếu Claude trả lời thẳng (không gọi tool)
-            if response.stop_reason == "end_turn":
-                answer = response.content[0].text
-                self.history.append({"role": "assistant", "content": answer})
-                return answer
+            candidate = response.candidates[0]
+            self._history.append(candidate.content)
 
-            # Claude muốn gọi tool
-            if response.stop_reason == "tool_use":
-                # Thêm response của Claude vào history
-                self.history.append({
-                    "role": "assistant",
-                    "content": response.content,
-                })
+            # Collect function calls from response parts
+            fn_calls = [
+                p.function_call
+                for p in candidate.content.parts
+                if p.function_call and p.function_call.name
+            ]
 
-                # Chạy tất cả tool Claude yêu cầu
-                tool_results = []
-                for block in response.content:
-                    if block.type != "tool_use":
-                        continue
-                    logger.info(f"→ Tool: {block.name}({block.input})")
-                    result = execute_tool(block.name, block.input)
-                    logger.info(f"← Kết quả: {result[:100]}...")
-                    tool_results.append({
-                        "type":        "tool_result",
-                        "tool_use_id": block.id,
-                        "content":     result,
-                    })
+            if not fn_calls:
+                return "".join(
+                    p.text for p in candidate.content.parts if p.text
+                )
 
-                # Đưa kết quả tool vào history để Claude xử lý tiếp
-                self.history.append({
-                    "role":    "user",
-                    "content": tool_results,
-                })
+            # Execute tools and build result parts
+            result_parts = []
+            for fc in fn_calls:
+                logger.info(f"→ Tool: {fc.name}({dict(fc.args)})")
+                result = execute_tool(fc.name, dict(fc.args))
+                logger.info(f"← Kết quả: {str(result)[:100]}...")
+                result_parts.append(
+                    types.Part(
+                        function_response=types.FunctionResponse(
+                            name=fc.name,
+                            response={"result": result},
+                        )
+                    )
+                )
+
+            self._history.append(
+                types.Content(role="user", parts=result_parts)
+            )
 
         return "Xin lỗi, tôi không thể hoàn thành yêu cầu sau nhiều lần thử."
 
     def reset(self):
-        """Xoá lịch sử hội thoại, bắt đầu cuộc trò chuyện mới."""
-        self.history = []
+        self._history = []
         print("Đã xoá lịch sử hội thoại.")
