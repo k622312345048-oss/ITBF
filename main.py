@@ -70,12 +70,6 @@ def run_visualize(tickers: list[str] | None = None) -> None:
 
     logger.info("Đang tạo biểu đồ...")
 
-    # Nếu người dùng truyền --tickers thì dùng danh sách đó
-    # Nếu không thì dùng blue-chip mặc định
-    default_priority = ["stock_VNM", "stock_HPG", "stock_FPT",
-                        "stock_VIC", "stock_ACB", "stock_MWG",
-                        "stock_VCB", "stock_TCB", "stock_BID", "stock_CTG"]
-
     # Load tất cả processed files
     all_frames: dict[str, pd.DataFrame] = {}
     for f in settings.processed_data_dir.glob("*.csv"):
@@ -85,17 +79,15 @@ def run_visualize(tickers: list[str] | None = None) -> None:
             pass
 
     if tickers:
-        # Người dùng chỉ định mã cụ thể
         keys = [f"stock_{t.upper()}" for t in tickers]
         focus = {k: all_frames[k] for k in keys if k in all_frames}
         missing = [t.upper() for t in tickers if f"stock_{t.upper()}" not in all_frames]
         if missing:
             logger.warning(f"Không tìm thấy dữ liệu cho: {missing} — bỏ qua.")
     else:
-        # Dùng blue-chip mặc định
-        focus = {k: all_frames[k] for k in default_priority if k in all_frames}
-        if not focus:
-            focus = dict(list(all_frames.items())[:10])
+        # Dùng danh sách từ config
+        stock_keys = [f"stock_{t}" for t in settings.stock_tickers]
+        focus = {k: all_frames[k] for k in stock_keys if k in all_frames}
 
     if not focus:
         logger.error("Không có dữ liệu để vẽ. Chạy --step process trước.")
@@ -104,7 +96,7 @@ def run_visualize(tickers: list[str] | None = None) -> None:
     logger.info(f"Vẽ biểu đồ cho: {[k.replace('stock_','') for k in focus.keys()]}")
 
     plot_trend(focus, settings.charts_dir)
-    plot_heatmap(focus, settings.charts_dir)
+    plot_heatmap(all_frames, settings.charts_dir)   # include macro cho heatmap
     plot_distribution(focus, settings.charts_dir)
     plot_rolling_stats(focus, settings.charts_dir)
 

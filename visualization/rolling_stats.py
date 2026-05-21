@@ -39,7 +39,8 @@ def plot_rolling_stats(frames: dict[str, pd.DataFrame], output_dir: Path,
         if len(df) < 20:
             continue
 
-        ticker = name.replace("stock_", "").upper()
+        ticker  = name.replace("stock_", "").upper()
+        y_label = "Điểm số" if ticker == "VNINDEX" else "Giá (nghìn VNĐ)"
 
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 9),
                                         gridspec_kw={"height_ratios": [3, 1],
@@ -77,7 +78,7 @@ def plot_rolling_stats(frames: dict[str, pd.DataFrame], output_dir: Path,
         ax1.set_title(f"{ticker} — Bollinger Bands (20 ngày, ±2σ) "
                       f"| {lookback_years} năm gần nhất",
                       fontsize=14, fontweight="bold", pad=12)
-        ax1.set_ylabel("Giá (nghìn VNĐ)", fontsize=11)
+        ax1.set_ylabel(y_label, fontsize=11)
         ax1.legend(loc="upper left", fontsize=8, framealpha=0.8)
         ax1.grid(axis="y", linestyle=":", alpha=0.4)
         ax1.tick_params(labelbottom=False)

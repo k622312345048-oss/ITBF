@@ -45,6 +45,8 @@ def plot_trend(frames: dict[str, pd.DataFrame], output_dir: Path,
             continue
 
         ticker = name.replace("stock_", "").upper()
+        is_index  = ticker == "VNINDEX"
+        y_label   = "Điểm số" if is_index else "Giá (nghìn VNĐ)"
 
         fig = plt.figure(figsize=(14, 8))
         fig.patch.set_facecolor("#f8f9fa")
@@ -68,7 +70,7 @@ def plot_trend(frames: dict[str, pd.DataFrame], output_dir: Path,
         ax1.set_title(f"{ticker} — Xu hướng giá & Khối lượng giao dịch "
                       f"({lookback_years} năm gần nhất)",
                       fontsize=14, fontweight="bold", pad=12)
-        ax1.set_ylabel("Giá (nghìn VNĐ)", fontsize=11)
+        ax1.set_ylabel(y_label, fontsize=11)
         ax1.legend(loc="upper left", fontsize=9, framealpha=0.8)
         ax1.grid(axis="y", linestyle=":", alpha=0.5)
         ax1.tick_params(labelbottom=False)

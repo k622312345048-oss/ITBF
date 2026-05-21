@@ -34,7 +34,7 @@ def plot_heatmap(frames: dict[str, pd.DataFrame], output_dir: Path,
             df["daily_return"] = df["close"].pct_change()
             col = "daily_return"
         if col:
-            ticker = name.replace("stock_", "").upper()
+            ticker = name.replace("stock_", "").replace("macro_", "").upper()
             returns[ticker] = df[col]
 
     if len(returns) < 2:
