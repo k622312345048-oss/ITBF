@@ -95,11 +95,10 @@ pytest tests/ -v
 
 **Never commit your `.env` file.**
 
-## Team
+## Team — Nhóm 9
 
-| Member | Module |
+| Thành viên | Module |
 |---|---|
-| Member A | `collection/` + `config.py` |
-| Member B | `processing/` + `tests/` |
-| Member C | `visualization/` |
-| Member D | `analysis/` + `main.py` + `README.md` |
+| Nguyễn Trần Hoàng Phúc | `collection/` + `config.py` |
+| Trương Ngọc Nga | `processing/` + `tests/` |
+| Hà Phương Ngân | `visualization/` + `analysis/` + `main.py` |
