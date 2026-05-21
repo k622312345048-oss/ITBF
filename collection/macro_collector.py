@@ -15,7 +15,6 @@ MACRO_SYMBOLS = {
     "USDVND=X":  "Tỷ giá USD/VNĐ",
     "GC=F":      "Giá vàng (USD/oz)",
     "CL=F":      "Giá dầu WTI (USD/barrel)",
-    "^VNINDEX":  "VN-Index",
     "^GSPC":     "S&P 500",
 }
 
