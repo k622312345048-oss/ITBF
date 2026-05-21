@@ -1,14 +1,15 @@
 """
 FinAgent — AI-Powered Financial Data Agent
 Usage:
-    # Chạy toàn bộ pipeline (full market + macro)
+    # Chạy toàn bộ pipeline
     python main.py --all
 
     # Chạy từng bước
-    python main.py --step collect          # Toàn sàn VN + 19 chỉ số macro
-    python main.py --step collect --quick  # Chỉ 5 mã mẫu + macro (để test)
+    python main.py --step collect              # Toàn sàn VN + 19 macro
+    python main.py --step collect --quick      # 5 mã mẫu (test nhanh)
     python main.py --step process
-    python main.py --step visualize
+    python main.py --step visualize                          # Blue-chip mặc định
+    python main.py --step visualize --tickers VNM,HPG,FPT   # Tự chọn mã
     python main.py --step analyze
 """
 
@@ -67,7 +68,7 @@ def run_process() -> None:
             logger.error(f"Lỗi xử lý {raw_file.name}: {e}")
 
 
-def run_visualize() -> None:
+def run_visualize(tickers: list[str] | None = None) -> None:
     from visualization.trend_chart import plot_trend
     from visualization.heatmap import plot_heatmap
     from visualization.distribution import plot_distribution
@@ -76,11 +77,13 @@ def run_visualize() -> None:
 
     logger.info("Đang tạo biểu đồ...")
 
-    # Ưu tiên các mã blue-chip; fallback về tất cả mã có sẵn
-    priority = ["stock_VNM", "stock_HPG", "stock_FPT",
-                "stock_VIC", "stock_ACB", "stock_MWG",
-                "stock_VCB", "stock_TCB", "stock_BID", "stock_CTG"]
+    # Nếu người dùng truyền --tickers thì dùng danh sách đó
+    # Nếu không thì dùng blue-chip mặc định
+    default_priority = ["stock_VNM", "stock_HPG", "stock_FPT",
+                        "stock_VIC", "stock_ACB", "stock_MWG",
+                        "stock_VCB", "stock_TCB", "stock_BID", "stock_CTG"]
 
+    # Load tất cả processed files
     all_frames: dict[str, pd.DataFrame] = {}
     for f in settings.processed_data_dir.glob("*.csv"):
         try:
@@ -88,17 +91,27 @@ def run_visualize() -> None:
         except Exception:
             pass
 
-    # Mã blue-chip có sẵn → dùng cho trend và Bollinger
-    focus = {k: all_frames[k] for k in priority if k in all_frames}
-    if not focus:                      # fallback nếu chưa có mã ưu tiên
-        focus = dict(list(all_frames.items())[:10])
+    if tickers:
+        # Người dùng chỉ định mã cụ thể
+        keys = [f"stock_{t.upper()}" for t in tickers]
+        focus = {k: all_frames[k] for k in keys if k in all_frames}
+        missing = [t.upper() for t in tickers if f"stock_{t.upper()}" not in all_frames]
+        if missing:
+            logger.warning(f"Không tìm thấy dữ liệu cho: {missing} — bỏ qua.")
+    else:
+        # Dùng blue-chip mặc định
+        focus = {k: all_frames[k] for k in default_priority if k in all_frames}
+        if not focus:
+            focus = dict(list(all_frames.items())[:10])
 
-    # Heatmap và distribution dùng tất cả mã có sẵn
-    logger.info(f"Focus tickers ({len(focus)}): {list(focus.keys())}")
-    logger.info(f"Total processed files: {len(all_frames)}")
+    if not focus:
+        logger.error("Không có dữ liệu để vẽ. Chạy --step process trước.")
+        return
+
+    logger.info(f"Vẽ biểu đồ cho: {[k.replace('stock_','') for k in focus.keys()]}")
 
     plot_trend(focus, settings.charts_dir)
-    plot_heatmap(all_frames, settings.charts_dir)
+    plot_heatmap(focus, settings.charts_dir)
     plot_distribution(focus, settings.charts_dir)
     plot_rolling_stats(focus, settings.charts_dir)
 
@@ -132,19 +145,23 @@ def main():
                        help="Chạy từng bước")
     parser.add_argument("--quick", action="store_true",
                         help="Chỉ dùng với --step collect: tải mã mẫu thay vì toàn sàn")
+    parser.add_argument("--tickers", type=str, default=None,
+                        help="Danh sách mã cách nhau bằng dấu phẩy, ví dụ: VNM,HPG,FPT")
     args = parser.parse_args()
+
+    tickers = [t.strip() for t in args.tickers.split(",")] if args.tickers else None
 
     if args.all:
         run_collect(quick=False)
         run_process()
-        run_visualize()
+        run_visualize(tickers)
         run_analyze()
     elif args.step == "collect":
         run_collect(quick=args.quick)
     elif args.step == "process":
         run_process()
     elif args.step == "visualize":
-        run_visualize()
+        run_visualize(tickers)
     elif args.step == "analyze":
         run_analyze()
 
