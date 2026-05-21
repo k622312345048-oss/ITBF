@@ -7,16 +7,23 @@ BASE_DIR = Path(__file__).parent
 class Settings(BaseSettings):
     # API Keys
     anthropic_api_key: str = ""
-    alpha_vantage_api_key: str = ""
     news_api_key: str = ""
 
     # Pipeline defaults
     default_period: str = "6mo"
-    default_interval: str = "1d"
 
-    # Assets to track
-    stock_tickers: list[str] = ["VNM.VN", "HPG.VN", "FPT.VN", "AAPL", "MSFT"]
-    macro_symbols: list[str] = ["GC=F", "CL=F"]   # Gold, Oil
+    # Cổ phiếu Việt Nam (HOSE, đuôi .VN)
+    # Bắt đầu với VNM + HPG, thêm mã khác vào đây khi cần
+    stock_tickers: list[str] = [
+        "VNM.VN",   # Vinamilk
+        "HPG.VN",   # Hòa Phát Group
+    ]
+
+    # Chỉ số vĩ mô
+    macro_symbols: list[str] = [
+        "GC=F",      # Giá vàng thế giới (USD/oz)
+        "USDVND=X",  # Tỷ giá USD/VNĐ (1 USD = ~25,000 VNĐ)
+    ]
 
     # Paths
     raw_data_dir: Path = BASE_DIR / "data" / "raw"
