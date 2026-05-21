@@ -1,13 +1,7 @@
-"""Thu thập dữ liệu lịch sử toàn bộ cổ phiếu niêm yết Việt Nam.
+"""Thu thập dữ liệu lịch sử cổ phiếu Việt Nam qua vnstock (nguồn VCI).
 
-Nguồn: VCI (VietCap) qua thư viện vnstock.
-Bao gồm HOSE, HNX, UPCOM (~1535 mã).
-Mỗi mã lấy từ ngày đầu niêm yết đến hiện tại.
-
-Rate limit của vnstock (guest): 20 req/phút.
-→ Dùng 3.5s sleep giữa mỗi mã để ở dưới ngưỡng an toàn.
-→ Ước tính: 1535 mã × 3.5s ≈ 90 phút.
-→ Resume được: chạy lại tự bỏ qua file đã có.
+Rate limit (guest): 20 req/phút → sleep 4.5s/mã.
+Resume được: chạy lại tự bỏ qua file đã có.
 """
 
 import logging
@@ -31,34 +25,12 @@ BATCH_SIZE       = 50
 
 
 class VNStockCollector(BaseCollector):
-    """Thu thập OHLCV toàn bộ cổ phiếu VN từ ngày IPO đến hôm nay."""
+    """Thu thập OHLCV cổ phiếu VN từ ngày IPO đến hôm nay."""
 
     MAX_RETRIES = 4   # ghi đè BaseCollector
 
-    def get_all_symbols(self) -> pd.DataFrame:
-        """Lấy danh sách toàn bộ mã niêm yết kèm sàn giao dịch."""
-        from vnstock.api.listing import Listing
-        logger.info("Đang lấy danh sách toàn bộ mã chứng khoán VN...")
-        df = Listing().symbols_by_exchange()
-        if "type" in df.columns:
-            df = df[df["type"] == "stock"].copy()
-        exchange_counts = df["exchange"].value_counts().to_dict() if "exchange" in df.columns else {}
-        logger.info(f"Tổng {len(df)} mã: {exchange_counts}")
-        return df
-
-    def collect(self, symbols: list[str] | None = None, force_reload: bool = False) -> None:
-        """Tải dữ liệu lịch sử cho danh sách mã (mặc định = toàn sàn).
-
-        Args:
-            symbols:      Danh sách mã cụ thể, hoặc None để lấy toàn sàn.
-            force_reload: True = tải lại dù file đã tồn tại.
-        """
+    def collect(self, symbols: list[str], force_reload: bool = False) -> None:
         settings.ensure_dirs()
-
-        if symbols is None:
-            symbol_df = self.get_all_symbols()
-            symbols = symbol_df["symbol"].tolist()
-
         today = date.today().strftime("%Y-%m-%d")
         total = len(symbols)
         success, skipped, failed = 0, 0, []
