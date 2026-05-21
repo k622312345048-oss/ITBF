@@ -75,19 +75,33 @@ def run_visualize() -> None:
     import pandas as pd
 
     logger.info("Đang tạo biểu đồ...")
-    frames = {}
+
+    # Ưu tiên các mã blue-chip; fallback về tất cả mã có sẵn
+    priority = ["stock_VNM", "stock_HPG", "stock_FPT",
+                "stock_VIC", "stock_ACB", "stock_MWG",
+                "stock_VCB", "stock_TCB", "stock_BID", "stock_CTG"]
+
+    all_frames: dict[str, pd.DataFrame] = {}
     for f in settings.processed_data_dir.glob("*.csv"):
         try:
-            df = pd.read_csv(f, index_col=0, parse_dates=True)
-            frames[f.stem] = df
+            all_frames[f.stem] = pd.read_csv(f, index_col=0, parse_dates=True)
         except Exception:
             pass
 
-    if frames:
-        plot_trend(frames, settings.charts_dir)
-        plot_heatmap(frames, settings.charts_dir)
-        plot_distribution(frames, settings.charts_dir)
-        plot_rolling_stats(frames, settings.charts_dir)
+    # Mã blue-chip có sẵn → dùng cho trend và Bollinger
+    focus = {k: all_frames[k] for k in priority if k in all_frames}
+    if not focus:                      # fallback nếu chưa có mã ưu tiên
+        focus = dict(list(all_frames.items())[:10])
+
+    # Heatmap và distribution dùng tất cả mã có sẵn
+    logger.info(f"Focus tickers ({len(focus)}): {list(focus.keys())}")
+    logger.info(f"Total processed files: {len(all_frames)}")
+
+    plot_trend(focus, settings.charts_dir)
+    plot_heatmap(all_frames, settings.charts_dir)
+    plot_distribution(focus, settings.charts_dir)
+    plot_rolling_stats(focus, settings.charts_dir)
+
     logger.info(f"Biểu đồ đã lưu tại {settings.charts_dir}")
 
 
