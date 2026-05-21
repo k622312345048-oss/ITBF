@@ -13,7 +13,7 @@ matplotlib==3.9.4
 seaborn==0.13.2
 
 # AI Analysis
-google-genai>=1.0.0
+groq>=0.11.0
 
 # Config & utilities
 python-dotenv==1.0.1

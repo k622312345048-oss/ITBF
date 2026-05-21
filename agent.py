@@ -15,7 +15,6 @@ Ví dụ câu hỏi:
 """
 
 import logging
-import os
 import sys
 import warnings
 
@@ -27,10 +26,10 @@ logging.basicConfig(
 
 # Kiểm tra API key trước khi khởi động
 from config import settings
-if not settings.gemini_api_key:
-    print("❌ Chưa có GEMINI_API_KEY trong file .env")
-    print("   Tạo file .env và thêm dòng: GEMINI_API_KEY=your_key_here")
-    print("   Lấy key miễn phí tại: https://aistudio.google.com/apikey")
+if not settings.groq_api_key:
+    print("❌ Chưa có GROQ_API_KEY trong file .env")
+    print("   Tạo file .env và thêm dòng: GROQ_API_KEY=your_key_here")
+    print("   Lấy key miễn phí tại: https://console.groq.com")
     sys.exit(1)
 
 from analysis.agent import FinAgent

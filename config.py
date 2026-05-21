@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).parent
 
 class Settings(BaseSettings):
     # API Keys
-    gemini_api_key: str = ""
+    groq_api_key: str = ""
     news_api_key: str = ""
 
     # 10 mã cổ phiếu Việt Nam + VN-Index benchmark

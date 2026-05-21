@@ -1,33 +1,32 @@
 import logging
 
-from google import genai
-from google.genai import types
+from groq import Groq
 
 from config import settings
 
 logger = logging.getLogger(__name__)
 
-_client: genai.Client | None = None
+_client: Groq | None = None
 
 _SYSTEM = "You are a professional financial analyst. Be concise and data-driven."
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 
-def get_client() -> genai.Client:
+def get_client() -> Groq:
     global _client
     if _client is None:
-        _client = genai.Client(api_key=settings.gemini_api_key)
+        _client = Groq(api_key=settings.groq_api_key)
     return _client
 
 
 def chat(prompt: str, system: str = "", model: str = DEFAULT_MODEL) -> str:
     client = get_client()
-    response = client.models.generate_content(
+    response = client.chat.completions.create(
         model=model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=system or _SYSTEM,
-            max_output_tokens=2048,
-        ),
+        max_tokens=2048,
+        messages=[
+            {"role": "system", "content": system or _SYSTEM},
+            {"role": "user",   "content": prompt},
+        ],
     )
-    return response.text
+    return response.choices[0].message.content
