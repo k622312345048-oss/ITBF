@@ -7,14 +7,50 @@ An end-to-end pipeline that collects financial data from multiple sources, clean
 ## Project Structure
 
 ```
-finagent/
-├── collection/        # Data collection (vnstock, yfinance, NewsAPI)
-├── processing/        # Cleaning, feature engineering, validation, news sentiment
-├── visualization/     # 4 chart types (trend, heatmap, distribution, Bollinger)
-├── analysis/          # AI analysis & interactive agent (Groq / LLaMA 3.3 70B)
-├── data/              # raw/ and processed/ CSVs (git-ignored)
-├── reports/           # Generated charts and analysis (git-ignored)
-└── tests/             # Unit tests
+ITBF/
+├── README.md
+├── requirements.txt
+├── config.py                        # Settings & paths (Pydantic)
+├── main.py                          # CLI pipeline runner
+├── agent.py                         # Interactive AI chatbot entry point
+├── .env.example                     # API key template
+│
+├── collection/
+│   ├── base_collector.py            # Retry/rate-limit base class
+│   ├── vn_stock_collector.py        # vnstock OHLCV (full market, parallel)
+│   ├── macro_collector.py           # yfinance macro indicators
+│   └── news_collector.py            # NewsAPI headlines
+│
+├── processing/
+│   ├── cleaner.py                   # Missing values, dedup, outlier flagging
+│   ├── feature_engineer.py          # Returns, MA 7/30d, volatility, Bollinger
+│   ├── validator.py                 # Schema & range checks
+│   └── news_processor.py           # Sentiment scoring from headlines
+│
+├── visualization/
+│   ├── trend_chart.py               # Price trend + volume overlay
+│   ├── heatmap.py                   # Correlation heatmap
+│   ├── distribution.py              # Daily returns histogram/KDE
+│   └── rolling_stats.py            # Moving averages & Bollinger Bands
+│
+├── analysis/
+│   ├── agent.py                     # FinAgent — Groq tool-use loop
+│   ├── tools.py                     # Tool schemas & implementations
+│   ├── analyzer.py                  # Batch AI report generator
+│   ├── prompt_builder.py            # Structured LLM prompt builders
+│   └── llm_client.py               # Groq API wrapper
+│
+├── data/                            # git-ignored
+│   ├── raw/                         # Downloaded CSVs
+│   └── processed/                   # Cleaned + feature-engineered CSVs
+│
+├── reports/                         # git-ignored
+│   ├── charts/                      # Generated PNG charts
+│   └── analysis/                    # AI-generated Markdown reports
+│
+└── tests/
+    ├── test_collection.py
+    └── test_processing.py
 ```
 
 ## Setup
