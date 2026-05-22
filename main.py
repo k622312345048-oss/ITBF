@@ -1,15 +1,14 @@
 """
 FinAgent — AI-Powered Financial Data Agent
 Usage:
-    # Chạy toàn bộ pipeline (11 mã mẫu + macro + news)
+    # Chạy toàn bộ pipeline (toàn thị trường + macro + news)
     python main.py --all
 
     # Chạy từng bước
-    python main.py --step collect               # 11 mã mẫu + macro + news
     python main.py --step collect-market        # Toàn bộ HOSE + HNX + UPCoM (~1500 mã)
     python main.py --step process               # Xử lý file đã có trong raw/
     python main.py --step process-watch         # Daemon: tự process khi có file mới
-    python main.py --step visualize                          # 11 mã mẫu mặc định
+    python main.py --step visualize                          # 11 mã mặc định
     python main.py --step visualize --tickers VNM,HPG,FPT   # Tự chọn mã
     python main.py --step analyze               # Phân tích tất cả mã đã processed
     python main.py --step analyze --top 20      # Chỉ top 20 mã thanh khoản cao nhất
@@ -40,31 +39,6 @@ def run_collect_market() -> None:
     logger.info("(Bỏ qua mã đã có file, chạy lại sẽ tiếp tục từ điểm dừng)")
     VNStockCollector().collect(symbols=tickers)
 
-
-def run_collect() -> None:
-    from collection.vn_stock_collector import VNStockCollector
-    from collection.macro_collector import MacroCollector
-    from collection.news_collector import NewsCollector
-
-    settings.ensure_dirs()
-
-    logger.info(f"=== Thu thập {len(settings.stock_tickers)} cổ phiếu ===")
-    VNStockCollector().collect(symbols=settings.stock_tickers)
-
-    logger.info(f"=== Thu thập {len(settings.macro_symbols)} chỉ số macro ===")
-    MacroCollector().collect(symbols=settings.macro_symbols)
-
-    # Dùng keywords thị trường rộng — tickers VN không có coverage tiếng Anh
-    news_keywords = [
-        "Vietnam stock market",
-        "VN-Index",
-        "Vietnam economy",
-        "FPT Vietnam",
-        "Vinhomes",
-        "Hoa Phat steel",
-    ]
-    logger.info(f"=== Thu thập news ({len(news_keywords)} keywords) ===")
-    NewsCollector().collect(keywords=news_keywords)
 
 
 def run_process(force: bool = False) -> None:
@@ -202,8 +176,9 @@ def run_visualize(tickers: list[str] | None = None) -> None:
         if missing:
             logger.warning(f"Không tìm thấy dữ liệu cho: {missing} — bỏ qua.")
     else:
-        # Dùng danh sách từ config
-        stock_keys = [f"stock_{t}" for t in settings.stock_tickers]
+        # Mặc định hiển thị 11 mã đại diện
+        default_tickers = ["VNM", "HPG", "FPT", "MWG", "VCB", "TCB", "VHM", "GAS", "VIC", "VIX", "VNINDEX"]
+        stock_keys = [f"stock_{t}" for t in default_tickers]
         focus = {k: all_frames[k] for k in stock_keys if k in all_frames}
 
     if not focus:
@@ -242,8 +217,8 @@ def main():
     parser = argparse.ArgumentParser(description="FinAgent pipeline")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--all",  action="store_true", help="Chạy full pipeline")
-    group.add_argument("--step", choices=["collect", "collect-market", "process", "process-watch", "visualize", "analyze"],
-                       help="Chạy từng bước (collect-market = tải toàn bộ HOSE+HNX+UPCoM, process-watch = xử lý liên tục song song với collect)")
+    group.add_argument("--step", choices=["collect-market", "process", "process-watch", "visualize", "analyze"],
+                       help="Chạy từng bước (collect-market = tải toàn bộ HOSE+HNX+UPCoM, process-watch = xử lý liên tục song song với collect-market)")
     parser.add_argument("--tickers", type=str, default=None,
                         help="Danh sách mã cách nhau bằng dấu phẩy, ví dụ: VNM,HPG,FPT")
     parser.add_argument("--force-process", action="store_true",
@@ -259,12 +234,10 @@ def main():
     force = args.force_process
 
     if args.all:
-        run_collect()
+        run_collect_market()
         run_process(force=force)
         run_visualize(tickers)
         run_analyze()
-    elif args.step == "collect":
-        run_collect()
     elif args.step == "collect-market":
         run_collect_market()
     elif args.step == "process":

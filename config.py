@@ -9,22 +9,6 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     news_api_key: str = ""
 
-    # Danh sách mẫu dùng cho run_collect() (quick collect).
-    # Để lấy toàn thị trường: python main.py --step collect-market
-    stock_tickers: list[str] = [
-        "VNM",     # Vinamilk
-        "HPG",     # Hòa Phát Group
-        "FPT",     # FPT Corporation
-        "MWG",     # Thế Giới Di Động
-        "VCB",     # Vietcombank
-        "TCB",     # Techcombank
-        "VHM",     # Vinhomes
-        "GAS",     # PV GAS
-        "VIC",     # Vingroup
-        "VIX",     # Chứng khoán VIX
-        "VNINDEX", # VN-Index (benchmark thị trường)
-    ]
-
     # Chỉ số vĩ mô
     macro_symbols: list[str] = [
         "USDVND=X",  # Tỷ giá USD/VNĐ
