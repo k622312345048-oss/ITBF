@@ -39,16 +39,22 @@ cp .env.example .env
 ## Usage
 
 ```bash
-# Run full pipeline
+# Run full pipeline (11 sample stocks + macro + news)
 python main.py --all
 
-# Run individual steps
-python main.py --step collect
-python main.py --step process
-python main.py --step visualize
-python main.py --step analyze
+# Collect full Vietnamese market (~1500 stocks, HOSE + HNX + UPCoM)
+python main.py --step collect-market
 
-# Interactive AI chatbot
+# Run individual steps
+python main.py --step collect               # 11 sample stocks + macro + news
+python main.py --step process               # Process all files in raw/
+python main.py --step process-watch         # Daemon: auto-process as new files arrive
+python main.py --step visualize             # Default 11 stocks
+python main.py --step visualize --tickers VNM,HPG,FPT   # Custom tickers
+python main.py --step analyze               # AI analysis for all processed stocks
+python main.py --step analyze --top 20      # Top 20 most liquid stocks only
+
+# Interactive AI chatbot — supports ANY Vietnamese stock on demand
 python agent.py
 ```
 
@@ -62,25 +68,28 @@ python agent.py
 
 ## Tracked Assets
 
-**Vietnamese Stocks (10 mã):**
+**Vietnamese Stocks:** Full market — all stocks on HOSE, HNX, and UPCoM (~1,500 tickers via `--step collect-market`).
+
+Default sample set (11 mã, used by `--step collect` and `--all`):
 VNM (Vinamilk), HPG (Hòa Phát), FPT (FPT Corp), MWG (Thế Giới Di Động),
 VCB (Vietcombank), TCB (Techcombank), VHM (Vinhomes), GAS (PV GAS),
-VIC (Vingroup), VIX (Chứng khoán VIX)
+VIC (Vingroup), VIX (Chứng khoán VIX), VNINDEX (benchmark)
 
-**Market Benchmark:** VNINDEX (VN-Index)
+The AI agent (`agent.py`) can fetch and analyse **any Vietnamese stock on demand** — just ask about a ticker not yet in cache and it will download automatically.
 
 **Macro Indicators (4):**
 USDVND (Tỷ giá USD/VNĐ), GC=F (Vàng), CL=F (Dầu WTI), ^GSPC (S&P 500)
 
 ## Features
 
-- Robust data collection with retry/rate-limit handling (3 sources)
+- Full Vietnamese market collection (~1,500 stocks, parallel download with rate-limit handling)
+- On-demand fetch: agent auto-downloads any VN stock not yet in cache
 - Cleaning pipeline: missing values (forward-fill), duplicate removal, outlier flagging
 - Feature engineering: daily returns, MA 7/30d, annualised volatility, Bollinger Bands
-- News sentiment scoring (keyword-based, per ticker per day)
+- News sentiment scoring with Vietnam market-level context
 - 4 chart types: trend+volume, correlation heatmap, returns distribution, Bollinger Bands
-- AI-powered analysis (LLaMA 3.3 70B via Groq): trend summary, anomaly detection, risk commentary, asset comparison, news sentiment alignment
-- Interactive AI chatbot (`agent.py`) with tool use
+- AI-powered analysis (LLaMA 3.3 70B via Groq): trend summary, anomaly detection, risk commentary, asset comparison
+- Interactive AI chatbot (`agent.py`) with tool use — supports any ticker on HOSE/HNX/UPCoM
 
 ## Running Tests
 

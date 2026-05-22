@@ -1,6 +1,9 @@
 """
 FinAgent — AI Chatbot phân tích chứng khoán Việt Nam
 
+Hỗ trợ BẤT KỲ mã cổ phiếu nào trên HOSE, HNX, UPCoM.
+Với mã chưa có cache, agent tự tải dữ liệu từ vnstock rồi phân tích.
+
 Chạy:
     python agent.py
 
@@ -10,6 +13,8 @@ Ví dụ câu hỏi:
     > So sánh VNM, HPG và FPT
     > Mã nào tăng mạnh nhất tháng này?
     > Vẽ biểu đồ Bollinger cho GAS
+    > Phân tích ACB          (mã chưa có cache — tự tải)
+    > Cho tôi xem giá SSI    (tự tải nếu chưa có)
     > reset  (xoá lịch sử, bắt đầu lại)
     > quit   (thoát)
 """

@@ -1,15 +1,21 @@
 """
 FinAgent — AI-Powered Financial Data Agent
 Usage:
-    # Chạy toàn bộ pipeline
+    # Chạy toàn bộ pipeline (11 mã mẫu + macro + news)
     python main.py --all
 
     # Chạy từng bước
-    python main.py --step collect
-    python main.py --step process
-    python main.py --step visualize                          # 10 mã mặc định
+    python main.py --step collect               # 11 mã mẫu + macro + news
+    python main.py --step collect-market        # Toàn bộ HOSE + HNX + UPCoM (~1500 mã)
+    python main.py --step process               # Xử lý file đã có trong raw/
+    python main.py --step process-watch         # Daemon: tự process khi có file mới
+    python main.py --step visualize                          # 11 mã mẫu mặc định
     python main.py --step visualize --tickers VNM,HPG,FPT   # Tự chọn mã
-    python main.py --step analyze
+    python main.py --step analyze               # Phân tích tất cả mã đã processed
+    python main.py --step analyze --top 20      # Chỉ top 20 mã thanh khoản cao nhất
+
+    # Interactive AI chatbot (hỗ trợ BẤT KỲ mã VN nào theo yêu cầu)
+    python agent.py
 """
 
 import argparse

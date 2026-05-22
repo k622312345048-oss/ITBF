@@ -9,7 +9,8 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     news_api_key: str = ""
 
-    # 10 mã cổ phiếu Việt Nam + VN-Index benchmark
+    # Danh sách mẫu dùng cho run_collect() (quick collect).
+    # Để lấy toàn thị trường: python main.py --step collect-market
     stock_tickers: list[str] = [
         "VNM",     # Vinamilk
         "HPG",     # Hòa Phát Group
