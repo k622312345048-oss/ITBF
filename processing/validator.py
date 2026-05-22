@@ -35,8 +35,8 @@ class Validator:
         ]
         passed = all(checks)
         if passed:
-            logger.info(f"[{name}] ✓ Validation passed — {len(df)} rows, "
-                        f"{df.index[0].date()} → {df.index[-1].date()}")
+            logger.debug(f"[{name}] ✓ {len(df)} rows "
+                         f"({df.index[0].date()} → {df.index[-1].date()})")
         return passed
 
     # ──────────────────────────────────────────────

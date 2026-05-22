@@ -5,9 +5,8 @@ Mỗi tool gồm:
   - hàm thực thi: chạy thật và trả kết quả dạng string
 """
 
-import json
 import logging
-from pathlib import Path
+from datetime import date
 
 import numpy as np
 import pandas as pd
@@ -22,6 +21,25 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────
 
 TOOL_SCHEMAS = [
+    {
+        "name": "fetch_stock",
+        "description": (
+            "Tải dữ liệu lịch sử cho MÃ CỔ PHIẾU BẤT KỲ trên sàn Việt Nam (HOSE, HNX, UPCoM). "
+            "Dùng khi người dùng hỏi về mã chưa có sẵn trong hệ thống. "
+            "Sau khi tải xong, dùng get_stock_summary để phân tích. "
+            "Ví dụ: ACB, STB, SSI, DIG, VPB, MSN, SAB, REE, NVL, MBB, BID, CTG..."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {
+                    "type": "string",
+                    "description": "Mã cổ phiếu cần tải, ví dụ: ACB, STB, SSI",
+                }
+            },
+            "required": ["ticker"],
+        },
+    },
     {
         "name": "list_available_stocks",
         "description": (
@@ -169,6 +187,7 @@ TOOL_SCHEMAS = [
 def execute_tool(name: str, inputs: dict) -> str:
     """Dispatch tên tool → hàm tương ứng."""
     handlers = {
+        "fetch_stock":           _fetch_stock,
         "list_available_stocks": _list_available_stocks,
         "get_stock_summary":     _get_stock_summary,
         "get_latest_prices":     _get_latest_prices,
@@ -189,20 +208,80 @@ def execute_tool(name: str, inputs: dict) -> str:
 # IMPLEMENTATIONS
 # ──────────────────────────────────────────────────────────────
 
-def _load_processed(ticker: str) -> pd.DataFrame | None:
-    """Load processed CSV cho 1 mã. Trả None nếu không có."""
-    path = settings.processed_data_dir / f"stock_{ticker.upper()}.csv"
-    if not path.exists():
-        # Thử tải nhanh nếu chưa có trong processed
-        raw = settings.raw_data_dir / f"stock_{ticker.upper()}.csv"
-        if not raw.exists():
+def _download_vnstock(ticker: str) -> pd.DataFrame | None:
+    """Tải toàn bộ lịch sử giá cho bất kỳ mã VN nào qua vnstock (VCI)."""
+    try:
+        from vnstock.api.quote import Quote
+        today = date.today().strftime("%Y-%m-%d")
+        df = Quote(symbol=ticker, source="VCI").history(
+            start="2000-01-01", end=today, interval="1D",
+        )
+        if df is None or df.empty:
             return None
+        df["time"] = pd.to_datetime(df["time"])
+        for col in ["open", "high", "low", "close"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0).astype(int)
+        return df.sort_values("time").reset_index(drop=True)
+    except Exception as e:
+        logger.warning(f"vnstock download thất bại cho {ticker}: {e}")
+        return None
+
+
+def _load_processed(ticker: str) -> pd.DataFrame | None:
+    """Load processed CSV cho 1 mã. Tự động tải từ vnstock nếu chưa có cache."""
+    ticker = ticker.upper()
+    processed_path = settings.processed_data_dir / f"stock_{ticker}.csv"
+
+    # 1. Đã có processed cache → trả ngay
+    if processed_path.exists():
+        return pd.read_csv(processed_path, index_col=0, parse_dates=True)
+
+    # 2. Thử raw cache, nếu không có thì download
+    raw_path = settings.raw_data_dir / f"stock_{ticker}.csv"
+    if not raw_path.exists():
+        logger.info(f"[on-demand] Đang tải {ticker} từ vnstock...")
+        df_raw = _download_vnstock(ticker)
+        if df_raw is None or df_raw.empty:
+            return None
+        settings.ensure_dirs()
+        df_raw.to_csv(raw_path, index=False)
+        logger.info(f"[on-demand] Lưu raw {ticker} ({len(df_raw)} phiên)")
+
+    # 3. Process + cache vào processed/
+    try:
         from processing.cleaner import Cleaner
         from processing.feature_engineer import FeatureEngineer
-        df = Cleaner().clean(raw)
+        df = Cleaner().clean(raw_path)
         df = FeatureEngineer().engineer(df)
+        settings.ensure_dirs()
+        df.to_csv(processed_path)
+        logger.info(f"[on-demand] Đã xử lý và cache {ticker}")
         return df
-    return pd.read_csv(path, index_col=0, parse_dates=True)
+    except Exception as e:
+        logger.error(f"Xử lý thất bại cho {ticker}: {e}")
+        return None
+
+
+def _fetch_stock(ticker: str) -> str:
+    """Tải và cache dữ liệu cho mã bất kỳ. Trả thông báo trạng thái."""
+    ticker = ticker.upper()
+    processed_path = settings.processed_data_dir / f"stock_{ticker}.csv"
+
+    if processed_path.exists():
+        df = pd.read_csv(processed_path, index_col=0, parse_dates=True)
+        return (f"{ticker} đã có sẵn: {len(df)} phiên "
+                f"({df.index[0].date()} → {df.index[-1].date()}). "
+                "Dùng get_stock_summary để xem phân tích.")
+
+    df = _load_processed(ticker)
+    if df is None:
+        return (f"Không tìm thấy dữ liệu cho {ticker}. "
+                "Kiểm tra lại mã — hỗ trợ cổ phiếu VN trên HOSE, HNX, UPCoM.")
+
+    return (f"Đã tải và xử lý {ticker}: {len(df)} phiên "
+            f"({df.index[0].date()} → {df.index[-1].date()}). "
+            "Dùng get_stock_summary để xem phân tích chi tiết.")
 
 
 def _list_available_stocks() -> str:
@@ -210,8 +289,13 @@ def _list_available_stocks() -> str:
     if not files:
         files = sorted(settings.raw_data_dir.glob("stock_*.csv"))
     tickers = [f.stem.replace("stock_", "").upper() for f in files]
-    return (f"Hiện có {len(tickers)} mã cổ phiếu trong hệ thống:\n"
-            + ", ".join(tickers))
+    return (
+        f"Hiện có {len(tickers)} mã cổ phiếu đã cache:\n"
+        + ", ".join(tickers)
+        + "\n\nNgoài ra bạn có thể hỏi về BẤT KỲ mã nào trên HOSE/HNX/UPCoM "
+        "(ACB, STB, SSI, VPB, MBB, MSN, SAB, REE, NVL, DIG...) — "
+        "hệ thống sẽ tự tải dữ liệu khi cần."
+    )
 
 
 def _get_stock_summary(ticker: str, period_days: int = 90) -> str:

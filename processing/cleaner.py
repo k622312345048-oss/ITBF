@@ -43,8 +43,8 @@ class Cleaner:
         df = self._flag_outliers(df, name)
         df = df.sort_index()
 
-        logger.info(f"[{name}] Clean xong: {original_len} → {len(df)} rows "
-                    f"({df.index[0].date()} → {df.index[-1].date()})")
+        logger.debug(f"[{name}] {original_len} → {len(df)} rows "
+                     f"({df.index[0].date()} → {df.index[-1].date()})")
         return df
 
     # ──────────────────────────────────────────────
@@ -84,7 +84,7 @@ class Cleaner:
         n = zero_mask.sum()
         if n:
             df.loc[zero_mask, PRICE_COLS] = np.nan
-            logger.info(f"[{name}] Thay {n} dòng giá=0 bằng NaN → sẽ forward-fill.")
+            logger.debug(f"[{name}] Thay {n} dòng giá=0 bằng NaN → sẽ forward-fill.")
         return df
 
     def _remove_duplicates(self, df: pd.DataFrame, name: str) -> pd.DataFrame:
@@ -92,17 +92,15 @@ class Cleaner:
         df = df[~df.index.duplicated(keep="first")]
         removed = before - len(df)
         if removed:
-            logger.info(f"[{name}] Xoá {removed} dòng trùng ngày.")
+            logger.debug(f"[{name}] Xoá {removed} dòng trùng ngày.")
         return df
 
     def _handle_missing(self, df: pd.DataFrame, name: str) -> pd.DataFrame:
         """Forward-fill → backfill cho phần đầu chuỗi."""
         missing = df[PRICE_COLS].isnull().sum().sum() if all(c in df.columns for c in PRICE_COLS) else 0
         if missing:
-            # Forward-fill: dùng giá của ngày gần nhất trước đó
-            # (hợp lý hơn interpolation vì thị trường đóng cửa/tạm ngừng)
             df[PRICE_COLS] = df[PRICE_COLS].ffill().bfill()
-            logger.info(f"[{name}] Forward-fill {missing} giá trị thiếu.")
+            logger.debug(f"[{name}] Forward-fill {missing} giá trị thiếu.")
         return df
 
     def _flag_outliers(self, df: pd.DataFrame, name: str) -> pd.DataFrame:
@@ -121,6 +119,5 @@ class Cleaner:
         df["is_outlier"] = (returns - mean).abs() > 3 * std
         n = int(df["is_outlier"].sum())
         if n:
-            dates = df.index[df["is_outlier"]].strftime("%Y-%m-%d").tolist()[:5]
-            logger.info(f"[{name}] Đánh dấu {n} outlier (VD: {dates}).")
+            logger.debug(f"[{name}] Đánh dấu {n} outlier.")
         return df
