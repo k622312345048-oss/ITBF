@@ -38,7 +38,7 @@ Nguyên tắc:
 
 
 def _build_openai_tools() -> list[dict]:
-    """Chuyển TOOL_SCHEMAS (Anthropic format) → OpenAI/Groq format."""
+    """Chuyển TOOL_SCHEMAS sang Groq/OpenAI function-calling format."""
     return [
         {
             "type": "function",

@@ -80,6 +80,7 @@ python main.py --all
 
 # Run individual steps
 python main.py --step collect-market        # Full HOSE + HNX + UPCoM (~1500 stocks)
+python main.py --step collect-supplementary # Macro indicators (yfinance) + News (NewsAPI)
 python main.py --step process               # Process all files in raw/
 python main.py --step process-watch         # Daemon: auto-process as new files arrive
 python main.py --step visualize             # Default 11 representative stocks

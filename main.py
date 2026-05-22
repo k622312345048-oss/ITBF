@@ -6,6 +6,7 @@ Usage:
 
     # Chạy từng bước
     python main.py --step collect-market        # Toàn bộ HOSE + HNX + UPCoM (~1500 mã)
+    python main.py --step collect-supplementary # Macro (yfinance) + News (NewsAPI)
     python main.py --step process               # Xử lý file đã có trong raw/
     python main.py --step process-watch         # Daemon: tự process khi có file mới
     python main.py --step visualize                          # 11 mã mặc định
@@ -38,6 +39,26 @@ def run_collect_market() -> None:
     logger.info(f"Ước tính thời gian: ~{len(tickers) * 4.5 / 60:.0f} phút")
     logger.info("(Bỏ qua mã đã có file, chạy lại sẽ tiếp tục từ điểm dừng)")
     VNStockCollector().collect(symbols=tickers)
+
+
+def run_collect_supplementary() -> None:
+    from collection.macro_collector import MacroCollector
+    from collection.news_collector import NewsCollector
+
+    settings.ensure_dirs()
+    logger.info(f"=== Thu thập {len(settings.macro_symbols)} chỉ số macro ===")
+    MacroCollector().collect(symbols=settings.macro_symbols)
+
+    news_keywords = [
+        "Vietnam stock market",
+        "VN-Index",
+        "Vietnam economy",
+        "FPT Vietnam",
+        "Vinhomes",
+        "Hoa Phat steel",
+    ]
+    logger.info(f"=== Thu thập news ({len(news_keywords)} keywords) ===")
+    NewsCollector().collect(keywords=news_keywords)
 
 
 
@@ -217,8 +238,8 @@ def main():
     parser = argparse.ArgumentParser(description="FinAgent pipeline")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--all",  action="store_true", help="Chạy full pipeline")
-    group.add_argument("--step", choices=["collect-market", "process", "process-watch", "visualize", "analyze"],
-                       help="Chạy từng bước (collect-market = tải toàn bộ HOSE+HNX+UPCoM, process-watch = xử lý liên tục song song với collect-market)")
+    group.add_argument("--step", choices=["collect-market", "collect-supplementary", "process", "process-watch", "visualize", "analyze"],
+                       help="Chạy từng bước (collect-market = tải toàn bộ HOSE+HNX+UPCoM, collect-supplementary = macro + news)")
     parser.add_argument("--tickers", type=str, default=None,
                         help="Danh sách mã cách nhau bằng dấu phẩy, ví dụ: VNM,HPG,FPT")
     parser.add_argument("--force-process", action="store_true",
@@ -235,11 +256,14 @@ def main():
 
     if args.all:
         run_collect_market()
+        run_collect_supplementary()
         run_process(force=force)
         run_visualize(tickers)
         run_analyze()
     elif args.step == "collect-market":
         run_collect_market()
+    elif args.step == "collect-supplementary":
+        run_collect_supplementary()
     elif args.step == "process":
         run_process(force=force)
     elif args.step == "process-watch":
